@@ -1,0 +1,16 @@
+{
+  "domain": "pid_thermostat",
+  "name": "PID thermostat",
+  "documentation": "https://github.com/ecarjat/pid_thermostat/README.md",
+  "requirements": [
+    "simple-pid"
+  ],
+  "issue_tracker": "https://github.com/ecarjat/pid_thermostat/issues",
+  "codeowners": [
+    "@ecarjat"
+  ],
+  "domains": [
+    "climate"
+  ],
+  "version": "0.0.1"
+}
