@@ -5,7 +5,7 @@ https://github.com/fabiannydegger/custom_components/"""
 import asyncio
 import logging
 import time
-from simple_pid import PID
+from custom_components.pid_thermostat import pid_controller as pid_controller
 
 
 import voluptuous as vol
