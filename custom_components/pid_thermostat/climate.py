@@ -32,7 +32,7 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from homeassistant.components.climate import PLATFORM_SCHEMA, ClimateDevice
+from homeassistant.components.climate import PLATFORM_SCHEMA, ClimateEntity
 from homeassistant.components.climate.const import (
     ATTR_PRESET_MODE,
     CURRENT_HVAC_COOL,
@@ -169,7 +169,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     )
 
 
-class SmartThermostat(ClimateDevice, RestoreEntity):
+class SmartThermostat(ClimateEntity, RestoreEntity):
     """Representation of a Smart Thermostat device."""
 
     def __init__(
