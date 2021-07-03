@@ -481,7 +481,8 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
     def _async_update_temp(self, state):
         """Update thermostat with latest state from sensor."""
         try:
-            self._cur_temp = state.attributes.get(ATTR_CURRENT_TEMPERATURE)
+            _LOGGER.info(state)
+            self._cur_temp = state.state
         except ValueError as ex:
             _LOGGER.error("Unable to update from sensor: %s", ex)
 
