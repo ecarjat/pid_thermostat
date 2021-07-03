@@ -1,0 +1,9 @@
+{
+    "name": "Smart Thermostat",
+    "hacs": "1.6.0",
+    "domains": [
+        "climate"
+    ],
+    "homeassistant": "0.118.0",
+    "iot_class": "Local Polling"
+}
