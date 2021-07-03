@@ -45,6 +45,7 @@ from homeassistant.components.climate.const import (
     PRESET_AWAY,
     SUPPORT_PRESET_MODE,
     SUPPORT_TARGET_TEMPERATURE,
+    ATTR_CURRENT_TEMPERATURE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -480,7 +481,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
     def _async_update_temp(self, state):
         """Update thermostat with latest state from sensor."""
         try:
-            self._cur_temp = float(state.current_temperature)
+            self._cur_temp = state.attributes.get(ATTR_CURRENT_TEMPERATURE)
         except ValueError as ex:
             _LOGGER.error("Unable to update from sensor: %s", ex)
 
