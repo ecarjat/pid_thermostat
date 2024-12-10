@@ -34,7 +34,7 @@ from homeassistant.core import callback
 
 # from homeassistant.helpers import condition
 from homeassistant.helpers.event import (
-    async_track_state_change,
+    async_track_state_change_event,
     async_track_time_interval,
 )
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -266,10 +266,10 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         await super().async_added_to_hass()
 
         # Add listener
-        async_track_state_change(
+        async_track_state_change_event(
             self.hass, self.sensor_entity_id, self._async_sensor_changed
         )
-        async_track_state_change(
+        async_track_state_change_event(
             self.hass, self.heater_entity_id, self._async_switch_changed
         )
 
@@ -428,7 +428,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
             return
         self._target_temp = temperature
         await self._async_control_heating(force=True)
-        await self.async_update_ha_state()
+        await self.async_update_ha_state(force_refresh=True)
 
     async def async_set_pid(self, kp, ki, kd):
         """Set PID parameters."""
@@ -436,7 +436,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         self.ki = ki
         self.kd = kd
         self._async_control_heating()
-        await self.async_update_ha_state()
+        await self.async_update_ha_state(force_refresh=True)
 
     @property
     def min_temp(self):
@@ -463,7 +463,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
 
         self._async_update_temp(new_state)
         # await self._async_control_heating()
-        await self.async_update_ha_state()
+        await self.async_update_ha_state(force_refresh=True)
 
     @callback
     def _async_switch_changed(self, entity_id, old_state, new_state):
@@ -560,7 +560,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
             self._target_temp = self._saved_target_temp
             await self._async_control_heating(force=True)
 
-        await self.async_update_ha_state()
+        await self.async_update_ha_state(force_refresh=True)
 
     async def calc_output(self):
         """calculate control output and handle autotune"""
