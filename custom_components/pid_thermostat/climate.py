@@ -30,7 +30,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.core import DOMAIN as HA_DOMAIN
-from homeassistant.core import callback
+from homeassistant.core import Event, EventStateChangedData, callback
 
 # from homeassistant.helpers import condition
 from homeassistant.helpers.event import (
@@ -456,8 +456,9 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         # Get default temp from super class
         return super().max_temp
 
-    async def _async_sensor_changed(self, entity_id, old_state, new_state):
+    async def _async_sensor_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle temperature changes."""
+        new_state = event.data["new_state"]
         if new_state is None:
             return
 
@@ -466,8 +467,9 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         await self.async_update_ha_state(force_refresh=True)
 
     @callback
-    def _async_switch_changed(self, entity_id, old_state, new_state):
+    def _async_switch_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle heater switch state changes."""
+        new_state = event.data["new_state"]
         if new_state is None:
             return
         self.async_schedule_update_ha_state()
