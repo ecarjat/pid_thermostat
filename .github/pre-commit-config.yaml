@@ -18,6 +18,8 @@ repos:
         types: [text]
         stages: [pre-commit, pre-push, manual]
         entry: isort
+        args:
+          - "--profile=black"
 
       - id: pyupgrade
         name: Run pyupgrade

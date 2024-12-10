@@ -1,3 +1,3 @@
-# Smart Termostat
+# Smart Thermostat
 
 Uses PID to control thermostats

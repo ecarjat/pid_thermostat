@@ -5,14 +5,21 @@ https://github.com/fabiannydegger/custom_components/"""
 import asyncio
 import logging
 import time
-from custom_components.pid_thermostat import pid_controller as pid_controller
 
-
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-
+from homeassistant.components.climate import PLATFORM_SCHEMA, ClimateEntity
+from homeassistant.components.climate.const import (
+    ATTR_PRESET_MODE,
+    PRESET_AWAY,
+    PRESET_HOME,
+    ClimateEntityFeature,
+    HVACAction,
+    HVACMode,
+)
+from homeassistant.const import ATTR_TEMPERATURE  # , STATE_ON,
 from homeassistant.const import (
     ATTR_ENTITY_ID,
-    ATTR_TEMPERATURE,
     CONF_NAME,
     EVENT_HOMEASSISTANT_START,
     PRECISION_HALVES,
@@ -20,34 +27,19 @@ from homeassistant.const import (
     PRECISION_WHOLE,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
-    STATE_ON,
     STATE_UNKNOWN,
 )
-from homeassistant.core import DOMAIN as HA_DOMAIN, callback
-from homeassistant.helpers import condition
-import homeassistant.helpers.config_validation as cv
+from homeassistant.core import DOMAIN as HA_DOMAIN
+from homeassistant.core import callback
+
+# from homeassistant.helpers import condition
 from homeassistant.helpers.event import (
     async_track_state_change,
     async_track_time_interval,
 )
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from homeassistant.components.climate import PLATFORM_SCHEMA, ClimateEntity
-from homeassistant.components.climate.const import (
-    ATTR_PRESET_MODE,
-    CURRENT_HVAC_COOL,
-    CURRENT_HVAC_HEAT,
-    CURRENT_HVAC_IDLE,
-    CURRENT_HVAC_OFF,
-    HVAC_MODE_COOL,
-    HVAC_MODE_HEAT,
-    HVAC_MODE_OFF,
-    PRESET_AWAY,
-    PRESET_HOME,
-    SUPPORT_PRESET_MODE,
-    SUPPORT_TARGET_TEMPERATURE,
-    ATTR_CURRENT_TEMPERATURE,
-)
+from custom_components.pid_thermostat import pid_controller as pid_controller
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,7 +75,11 @@ CONF_PWM = "pwm"
 CONF_AUTOTUNE = "autotune"
 CONF_NOISEBAND = "noiseband"
 
-SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE
+SUPPORT_FLAGS = (
+    ClimateEntityFeature.TARGET_TEMPERATURE
+    | ClimateEntityFeature.TURN_OFF
+    | ClimateEntityFeature.TURN_ON
+)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -99,7 +95,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
         vol.Required(CONF_KEEP_ALIVE): vol.All(cv.time_period, cv.positive_timedelta),
         vol.Optional(CONF_INITIAL_HVAC_MODE): vol.In(
-            [HVAC_MODE_COOL, HVAC_MODE_HEAT, HVAC_MODE_OFF]
+            [HVACMode.COOL, HVACMode.HEAT, HVACMode.OFF]
         ),
         vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
         vol.Optional(CONF_PRECISION): vol.In(
@@ -212,11 +208,11 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         self._saved_target_temp = target_temp or away_temp
         self._temp_precision = precision
         if self.ac_mode:
-            self._hvac_list = [HVAC_MODE_COOL, HVAC_MODE_OFF]
+            self._hvac_list = [HVACMode.COOL, HVACMode.OFF]
             self.minOut = -difference
             self.maxOut = 0
         else:
-            self._hvac_list = [HVAC_MODE_HEAT, HVAC_MODE_OFF]
+            self._hvac_list = [HVACMode.HEAT, HVACMode.OFF]
             self.minOut = 0
             self.maxOut = difference
         self._active = False
@@ -228,7 +224,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         self._unit = unit
         self._support_flags = SUPPORT_FLAGS
         if away_temp:
-            self._support_flags = SUPPORT_FLAGS | SUPPORT_PRESET_MODE
+            self._support_flags = SUPPORT_FLAGS | ClimateEntityFeature.PRESET_MODE
         self._away_temp = away_temp
         self._is_away = False
         self.difference = difference
@@ -252,7 +248,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
             )
             _LOGGER.warning(
                 "Autotune will run with the next Setpoint Value you set."
-                "changes, submited after doesn't have any effekt until it's finished"
+                "changes, submitted after doesn't have any effect until it's finished"
             )
         else:
             self.pidController = pid_controller.PIDArduino(
@@ -326,7 +322,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
 
         # Set default state to off
         if not self._hvac_mode:
-            self._hvac_mode = HVAC_MODE_OFF
+            self._hvac_mode = HVACMode.OFF
 
     @property
     def should_poll(self):
@@ -363,15 +359,15 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
     @property
     def hvac_action(self):
         """Return the current running hvac operation if supported.
-        Need to be one of CURRENT_HVAC_*.
+        Need to be one of HVACAction
         """
-        if self._hvac_mode == HVAC_MODE_OFF:
-            return CURRENT_HVAC_OFF
+        if self._hvac_mode == HVACMode.OFF:
+            return HVACAction.OFF
         if not self._is_device_active:
-            return CURRENT_HVAC_IDLE
+            return HVACAction.IDLE
         if self.ac_mode:
-            return CURRENT_HVAC_COOL
-        return CURRENT_HVAC_HEAT
+            return HVACAction.COOLING
+        return HVACAction.HEATING
 
     @property
     def target_temperature(self):
@@ -409,14 +405,14 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set hvac mode."""
-        if hvac_mode == HVAC_MODE_HEAT:
-            self._hvac_mode = HVAC_MODE_HEAT
+        if hvac_mode == HVACMode.HEAT:
+            self._hvac_mode = HVACMode.HEAT
             await self._async_control_heating(force=True)
-        elif hvac_mode == HVAC_MODE_COOL:
-            self._hvac_mode = HVAC_MODE_COOL
+        elif hvac_mode == HVACMode.COOL:
+            self._hvac_mode = HVACMode.COOL
             await self._async_control_heating(force=True)
-        elif hvac_mode == HVAC_MODE_OFF:
-            self._hvac_mode = HVAC_MODE_OFF
+        elif hvac_mode == HVACMode.OFF:
+            self._hvac_mode = HVACMode.OFF
             if self._is_device_active:
                 await self._async_heater_turn_off()
         else:
@@ -434,7 +430,6 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         await self._async_control_heating(force=True)
         await self.async_update_ha_state()
 
-    
     async def async_set_pid(self, kp, ki, kd):
         """Set PID parameters."""
         self.kp = kp
@@ -481,7 +476,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
     def _async_update_temp(self, state):
         """Update thermostat with latest state from sensor."""
         try:
-            if state.state is not None and state.state is not "unknown":
+            if state.state is not None and state.state != "unknown":
                 self._cur_temp = float(state.state)
         except ValueError as ex:
             _LOGGER.error("Unable to update from sensor: %s", ex)
@@ -498,7 +493,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
                     self._target_temp,
                 )
 
-            if not self._active or self._hvac_mode == HVAC_MODE_OFF:
+            if not self._active or self._hvac_mode == HVACMode.OFF:
                 return
 
             # if not force and time is None:

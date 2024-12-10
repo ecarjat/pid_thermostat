@@ -1,12 +1,12 @@
-import math
 import logging
-from time import time
+import math
 from collections import deque, namedtuple
+from time import time
 
 
 # Based on Arduino PID Library
 # See https://github.com/br3ttb/Arduino-PID-Library
-class PIDArduino(object):
+class PIDArduino:
     """A proportional-integral-derivative controller.
 
     Args:
@@ -19,18 +19,26 @@ class PIDArduino(object):
         time (function): A function which returns the current time in seconds.
     """
 
-    def __init__(self, sampletime, kp, ki, kd, out_min=float('-inf'),
-                 out_max=float('inf'), time=time):
+    def __init__(
+        self,
+        sampletime,
+        kp,
+        ki,
+        kd,
+        out_min=float("-inf"),
+        out_max=float("inf"),
+        time=time,
+    ):
         if kp is None:
-            raise ValueError('kp must be specified')
+            raise ValueError("kp must be specified")
         if ki is None:
-            raise ValueError('ki must be specified')
+            raise ValueError("ki must be specified")
         if kd is None:
-            raise ValueError('kd must be specified')
+            raise ValueError("kd must be specified")
         if sampletime <= 0:
-            raise ValueError('sampletime must be greater than 0')
+            raise ValueError("sampletime must be greater than 0")
         if out_min >= out_max:
-            raise ValueError('out_min must be less than out_max')
+            raise ValueError("out_min must be less than out_max")
 
         self._logger = logging.getLogger(type(self).__name__)
         self._Kp = kp
@@ -80,19 +88,20 @@ class PIDArduino(object):
         self._last_output = max(self._last_output, self._out_min)
 
         # Log some debug info
-        self._logger.debug('P: {0}'.format(p))
-        self._logger.debug('I: {0}'.format(i))
-        self._logger.debug('D: {0}'.format(d))
-        self._logger.debug('output: {0}'.format(self._last_output))
+        self._logger.debug(f"P: {p}")
+        self._logger.debug(f"I: {i}")
+        self._logger.debug(f"D: {d}")
+        self._logger.debug(f"output: {self._last_output}")
 
         # Remember some variables for next time
         self._last_input = input_val
         self._last_calc_timestamp = now
         return self._last_output
 
+
 # Based on a fork of Arduino PID AutoTune Library
 # See https://github.com/t0mpr1c3/Arduino-PID-AutoTune-Library
-class PIDAutotune(object):
+class PIDAutotune:
     """Determines viable parameters for a PID controller.
 
     Args:
@@ -107,38 +116,48 @@ class PIDAutotune(object):
             overshoot/undershoot the setpoint before the state changes.
         time (function): A function which returns the current time in seconds.
     """
-    PIDParams = namedtuple('PIDParams', ['Kp', 'Ki', 'Kd'])
+
+    PIDParams = namedtuple("PIDParams", ["Kp", "Ki", "Kd"])
 
     PEAK_AMPLITUDE_TOLERANCE = 0.05
-    STATE_OFF = 'off'
-    STATE_RELAY_STEP_UP = 'relay step up'
-    STATE_RELAY_STEP_DOWN = 'relay step down'
-    STATE_SUCCEEDED = 'succeeded'
-    STATE_FAILED = 'failed'
+    STATE_OFF = "off"
+    STATE_RELAY_STEP_UP = "relay step up"
+    STATE_RELAY_STEP_DOWN = "relay step down"
+    STATE_SUCCEEDED = "succeeded"
+    STATE_FAILED = "failed"
 
     _tuning_rules = {
         # rule: [Kp_divisor, Ki_divisor, Kd_divisor]
         "ziegler-nichols": [34, 40, 160],
-        "tyreus-luyben": [44,  9, 126],
+        "tyreus-luyben": [44, 9, 126],
         "ciancone-marlin": [66, 88, 162],
         "pessen-integral": [28, 50, 133],
-        "some-overshoot": [60, 40,  60],
-        "no-overshoot": [100, 40,  60],
-        "brewing": [2.5, 6, 380]
+        "some-overshoot": [60, 40, 60],
+        "no-overshoot": [100, 40, 60],
+        "brewing": [2.5, 6, 380],
     }
 
-    def __init__(self, setpoint, out_step=10, sampletime=5, lookback=60,
-                 out_min=float('-inf'), out_max=float('inf'), noiseband=0.5, time=time):
+    def __init__(
+        self,
+        setpoint,
+        out_step=10,
+        sampletime=5,
+        lookback=60,
+        out_min=float("-inf"),
+        out_max=float("inf"),
+        noiseband=0.5,
+        time=time,
+    ):
         if setpoint is None:
-            raise ValueError('setpoint must be specified')
+            raise ValueError("setpoint must be specified")
         if out_step < 1:
-            raise ValueError('out_step must be greater or equal to 1')
+            raise ValueError("out_step must be greater or equal to 1")
         if sampletime < 1:
-            raise ValueError('sampletime must be greater or equal to 1')
+            raise ValueError("sampletime must be greater or equal to 1")
         if lookback < sampletime:
-            raise ValueError('lookback must be greater or equal to sampletime')
+            raise ValueError("lookback must be greater or equal to sampletime")
         if out_min >= out_max:
-            raise ValueError('out_min must be less than out_max')
+            raise ValueError("out_min must be less than out_max")
 
         self._time = time
         self._logger = logging.getLogger(type(self).__name__)
@@ -176,7 +195,7 @@ class PIDAutotune(object):
         """Get a list of all available tuning rules."""
         return self._tuning_rules.keys()
 
-    def get_pid_parameters(self, tuning_rule='ziegler-nichols'):
+    def get_pid_parameters(self, tuning_rule="ziegler-nichols"):
         """Get PID parameters.
 
         Args:
@@ -200,9 +219,11 @@ class PIDAutotune(object):
         """
         now = self._time() * 1000
 
-        if (self._state == PIDAutotune.STATE_OFF
-                or self._state == PIDAutotune.STATE_SUCCEEDED
-                or self._state == PIDAutotune.STATE_FAILED):
+        if (
+            self._state == PIDAutotune.STATE_OFF
+            or self._state == PIDAutotune.STATE_SUCCEEDED
+            or self._state == PIDAutotune.STATE_FAILED
+        ):
             self._initTuner(input_val, now)
         elif (now - self._last_run_timestamp) < self._sampletime:
             return False
@@ -210,19 +231,23 @@ class PIDAutotune(object):
         self._last_run_timestamp = now
 
         # check input and change relay state if necessary
-        if (self._state == PIDAutotune.STATE_RELAY_STEP_UP
-                and input_val > self._setpoint + self._noiseband):
+        if (
+            self._state == PIDAutotune.STATE_RELAY_STEP_UP
+            and input_val > self._setpoint + self._noiseband
+        ):
             self._state = PIDAutotune.STATE_RELAY_STEP_DOWN
-            self._logger.debug('switched state: {0}'.format(self._state))
-            self._logger.debug('input: {0}'.format(input_val))
-        elif (self._state == PIDAutotune.STATE_RELAY_STEP_DOWN
-                and input_val < self._setpoint - self._noiseband):
+            self._logger.debug(f"switched state: {self._state}")
+            self._logger.debug(f"input: {input_val}")
+        elif (
+            self._state == PIDAutotune.STATE_RELAY_STEP_DOWN
+            and input_val < self._setpoint - self._noiseband
+        ):
             self._state = PIDAutotune.STATE_RELAY_STEP_UP
-            self._logger.debug('switched state: {0}'.format(self._state))
-            self._logger.debug('input: {0}'.format(input_val))
+            self._logger.debug(f"switched state: {self._state}")
+            self._logger.debug(f"input: {input_val}")
 
         # set output
-        if (self._state == PIDAutotune.STATE_RELAY_STEP_UP):
+        if self._state == PIDAutotune.STATE_RELAY_STEP_UP:
             self._output = self._initial_output + self._outputstep
         elif self._state == PIDAutotune.STATE_RELAY_STEP_DOWN:
             self._output = self._initial_output - self._outputstep
@@ -265,8 +290,8 @@ class PIDAutotune(object):
             self._peak_count += 1
             self._peaks.append(input_val)
             self._peak_timestamps.append(now)
-            self._logger.debug('found peak: {0}'.format(input_val))
-            self._logger.debug('peak count: {0}'.format(self._peak_count))
+            self._logger.debug(f"found peak: {input_val}")
+            self._logger.debug(f"peak count: {self._peak_count}")
 
         # check for convergence of induced oscillation
         # convergence of amplitude assessed on last 4 peaks (1.5 cycles)
@@ -276,18 +301,19 @@ class PIDAutotune(object):
             abs_max = self._peaks[-2]
             abs_min = self._peaks[-2]
             for i in range(0, len(self._peaks) - 2):
-                self._induced_amplitude += abs(self._peaks[i] - self._peaks[i+1])
+                self._induced_amplitude += abs(self._peaks[i] - self._peaks[i + 1])
                 abs_max = max(self._peaks[i], abs_max)
                 abs_min = min(self._peaks[i], abs_min)
 
             self._induced_amplitude /= 6.0
 
             # check convergence criterion for amplitude of induced oscillation
-            amplitude_dev = ((0.5 * (abs_max - abs_min) - self._induced_amplitude)
-                             / self._induced_amplitude)
+            amplitude_dev = (
+                0.5 * (abs_max - abs_min) - self._induced_amplitude
+            ) / self._induced_amplitude
 
-            self._logger.debug('amplitude: {0}'.format(self._induced_amplitude))
-            self._logger.debug('amplitude deviation: {0}'.format(amplitude_dev))
+            self._logger.debug(f"amplitude: {self._induced_amplitude}")
+            self._logger.debug(f"amplitude deviation: {amplitude_dev}")
 
             if amplitude_dev < PIDAutotune.PEAK_AMPLITUDE_TOLERANCE:
                 self._state = PIDAutotune.STATE_SUCCEEDED
