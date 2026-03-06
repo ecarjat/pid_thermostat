@@ -2,6 +2,9 @@
   "domain": "pid_thermostat",
   "name": "PID thermostat",
   "documentation": "https://github.com/ecarjat/pid_thermostat/README.md",
+  "integration_type": "entity",
+  "iot_class": "local_polling",
+  "config_flow": true,
   "requirements": [
     "simple-pid"
   ],
