@@ -1,0 +1,34 @@
+{
+  "title": "PID Thermostat",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up PID Thermostat",
+        "description": "Create a thermostat controlled by PID from a sensor and switch.",
+        "data": {
+          "name": "Name",
+          "heater": "Heater entity",
+          "target_sensor": "Temperature sensor",
+          "keep_alive": "Control interval (seconds)",
+          "ac_mode": "Cooling mode",
+          "min_cycle_duration": "Minimum cycle duration (seconds)",
+          "min_temp": "Minimum temperature",
+          "max_temp": "Maximum temperature",
+          "target_temp": "Target temperature",
+          "cold_tolerance": "Cold tolerance",
+          "hot_tolerance": "Hot tolerance",
+          "initial_hvac_mode": "Initial HVAC mode",
+          "away_temp": "Away temperature",
+          "precision": "Precision",
+          "difference": "Output difference",
+          "kp": "PID Kp",
+          "ki": "PID Ki",
+          "kd": "PID Kd",
+          "pwm": "PWM period (seconds)",
+          "autotune": "Autotune mode",
+          "noiseband": "Autotune noise band"
+        }
+      }
+    }
+  }
+}
