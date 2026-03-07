@@ -75,6 +75,7 @@ from custom_components.pid_thermostat.const import (
     DEFAULT_NOISEBAND,
     DEFAULT_PWM,
     DEFAULT_TOLERANCE,
+    DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -124,8 +125,22 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the generic thermostat platform."""
-    async_add_entities([_build_thermostat(hass, config)])
+    """Import YAML config to config entries; fallback to legacy setup on failure."""
+    import_config = dict(config)
+    import_config.pop("platform", None)
+    try:
+        await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "import"},
+            data=import_config,
+        )
+    except Exception:  # pragma: no cover - defensive fallback for older runtimes
+        _LOGGER.exception(
+            "Failed to import YAML configuration for %s; "
+            "falling back to legacy platform setup.",
+            DOMAIN,
+        )
+        async_add_entities([_build_thermostat(hass, config)])
 
 
 async def async_setup_entry(

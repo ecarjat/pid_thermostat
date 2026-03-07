@@ -48,6 +48,10 @@ class DummyHass:
     def __init__(self):
         self.states = DummyStates()
         self.services = DummyServices(self.states)
+        self.config = SimpleNamespace(units=SimpleNamespace(temperature_unit="C"))
+        self.config_entries = SimpleNamespace(
+            flow=SimpleNamespace(async_init=AsyncMock())
+        )
 
 
 def build_thermostat(
@@ -90,6 +94,28 @@ def build_thermostat(
     thermostat.async_write_ha_state = Mock()
     thermostat.async_schedule_update_ha_state = Mock()
     return thermostat
+
+
+@pytest.mark.asyncio
+async def test_async_setup_platform_imports_yaml_to_config_entry():
+    hass = DummyHass()
+    added = []
+    config = {
+        "platform": "pid_thermostat",
+        climate.CONF_NAME: "Office",
+        climate.CONF_HEATER: "switch.heater",
+        climate.CONF_SENSOR: "sensor.temp",
+        climate.CONF_KEEP_ALIVE: timedelta(seconds=45),
+    }
+
+    await climate.async_setup_platform(hass, config, lambda entities: added.extend(entities))
+
+    hass.config_entries.flow.async_init.assert_awaited_once()
+    _, kwargs = hass.config_entries.flow.async_init.await_args
+    assert kwargs["context"]["source"] == "import"
+    assert kwargs["data"][climate.CONF_HEATER] == "switch.heater"
+    assert "platform" not in kwargs["data"]
+    assert added == []
 
 
 def test_schema_rejects_invalid_autotune_value():

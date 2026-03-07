@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components.climate.const import HVACMode
@@ -54,6 +57,40 @@ def _entity_field():
     if EntitySelector is None or EntitySelectorConfig is None:
         return str
     return EntitySelector(EntitySelectorConfig())
+
+
+def _normalize_seconds(value):
+    """Normalize imported time values to integer seconds."""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, timedelta):
+        return int(value.total_seconds())
+    try:
+        return int(cv.time_period(value).total_seconds())
+    except (TypeError, ValueError, vol.Invalid):
+        return value
+
+
+def _normalize_import_data(user_input):
+    """Normalize YAML-imported data into config-entry format."""
+    data = dict(user_input)
+    data.setdefault(CONF_NAME, DEFAULT_NAME)
+
+    keep_alive = _normalize_seconds(data.get(CONF_KEEP_ALIVE))
+    if keep_alive is not None:
+        data[CONF_KEEP_ALIVE] = keep_alive
+
+    min_cycle = _normalize_seconds(data.get(CONF_MIN_DUR))
+    if min_cycle == 0:
+        data.pop(CONF_MIN_DUR, None)
+    elif min_cycle is not None:
+        data[CONF_MIN_DUR] = min_cycle
+
+    return data
 
 
 class PIDThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -115,3 +152,15 @@ class PIDThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors={})
+
+    async def async_step_import(self, user_input=None):
+        """Handle configuration import from YAML."""
+        if user_input is None:
+            return self.async_abort(reason="invalid_import")
+
+        imported = _normalize_import_data(user_input)
+        unique_id = f"{imported[CONF_HEATER]}::{imported[CONF_SENSOR]}"
+        await self.async_set_unique_id(unique_id)
+        self._abort_if_unique_id_configured()
+
+        return self.async_create_entry(title=imported[CONF_NAME], data=imported)

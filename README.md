@@ -84,6 +84,10 @@ climate:
     noiseband: 0.5
 ```
 
+At startup, YAML entries are automatically imported into managed config entries.
+After confirming the imported integration works, remove the YAML block to avoid
+maintaining duplicate configuration sources.
+
 ## Configuration Reference
 
 | Key | Required | Default | Notes |

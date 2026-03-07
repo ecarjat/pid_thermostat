@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -109,3 +111,24 @@ async def test_migrate_entry_converts_time_values_to_seconds(hass):
     assert entry.minor_version == 1
     assert entry.data[climate.CONF_KEEP_ALIVE] == 60
     assert entry.data[climate.CONF_MIN_DUR] == 120
+
+
+@pytest.mark.asyncio
+async def test_import_flow_creates_entry_and_normalizes_time_values(hass):
+    """Import flow should normalize YAML-like timing values to entry format."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": "import"},
+        data={
+            climate.CONF_HEATER: "switch.heater_office",
+            climate.CONF_SENSOR: "sensor.office_temp",
+            climate.CONF_KEEP_ALIVE: timedelta(seconds=45),
+            climate.CONF_MIN_DUR: timedelta(seconds=120),
+            climate.CONF_AUTOTUNE: climate.DEFAULT_AUTOTUNE,
+        },
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][climate.CONF_KEEP_ALIVE] == 45
+    assert result["data"][climate.CONF_MIN_DUR] == 120
+    assert result["data"][climate.CONF_NAME] == climate.DEFAULT_NAME
