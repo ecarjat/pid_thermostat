@@ -5,9 +5,6 @@
   "integration_type": "entity",
   "iot_class": "local_polling",
   "config_flow": true,
-  "requirements": [
-    "simple-pid"
-  ],
   "issue_tracker": "https://github.com/ecarjat/pid_thermostat/issues",
   "codeowners": [
     "@ecarjat"

@@ -43,51 +43,42 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from custom_components.pid_thermostat import pid_controller as pid_controller
+from custom_components.pid_thermostat.const import (
+    AUTOTUNE_RULES,
+    CONF_AC_MODE,
+    CONF_AUTOTUNE,
+    CONF_AWAY_TEMP,
+    CONF_COLD_TOLERANCE,
+    CONF_DIFFERENCE,
+    CONF_HEATER,
+    CONF_HOT_TOLERANCE,
+    CONF_INITIAL_HVAC_MODE,
+    CONF_KD,
+    CONF_KEEP_ALIVE,
+    CONF_KI,
+    CONF_KP,
+    CONF_MAX_TEMP,
+    CONF_MIN_DUR,
+    CONF_MIN_TEMP,
+    CONF_NOISEBAND,
+    CONF_PRECISION,
+    CONF_PWM,
+    CONF_SENSOR,
+    CONF_TARGET_TEMP,
+    DEFAULT_AUTOTUNE,
+    DEFAULT_DIFFERENCE,
+    DEFAULT_KD,
+    DEFAULT_KEEP_ALIVE_SECONDS,
+    DEFAULT_KI,
+    DEFAULT_KP,
+    DEFAULT_NAME,
+    DEFAULT_NOISEBAND,
+    DEFAULT_PWM,
+    DEFAULT_TOLERANCE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_TOLERANCE = 0.3
-DEFAULT_NAME = "Smart Thermostat"
-# To Do: set default for pt1
-DEFAULT_DIFFERENCE = 100
-DEFAULT_PWM = 0
-DEFAULT_KP = 0
-DEFAULT_KI = 0
-DEFAULT_KD = 0
-DEFAULT_AUTOTUNE = "none"
-DEFAULT_NOISEBAND = 0.5
-DEFAULT_KEEP_ALIVE_SECONDS = 60
-AUTOTUNE_RULES = (
-    DEFAULT_AUTOTUNE,
-    "ziegler-nichols",
-    "tyreus-luyben",
-    "ciancone-marlin",
-    "pessen-integral",
-    "some-overshoot",
-    "no-overshoot",
-    "brewing",
-)
-
-CONF_HEATER = "heater"
-CONF_SENSOR = "target_sensor"
-CONF_MIN_TEMP = "min_temp"
-CONF_MAX_TEMP = "max_temp"
-CONF_TARGET_TEMP = "target_temp"
-CONF_AC_MODE = "ac_mode"
-CONF_MIN_DUR = "min_cycle_duration"
-CONF_COLD_TOLERANCE = "cold_tolerance"
-CONF_HOT_TOLERANCE = "hot_tolerance"
-CONF_KEEP_ALIVE = "keep_alive"
-CONF_INITIAL_HVAC_MODE = "initial_hvac_mode"
-CONF_AWAY_TEMP = "away_temp"
-CONF_PRECISION = "precision"
-CONF_DIFFERENCE = "difference"
-CONF_KP = "kp"
-CONF_KI = "ki"
-CONF_KD = "kd"
-CONF_PWM = "pwm"
-CONF_AUTOTUNE = "autotune"
-CONF_NOISEBAND = "noiseband"
 ATTR_HOME_TEMP = "home_temp"
 ATTR_AWAY_TEMP = "away_temp"
 ATTR_PID_KP = "pid_kp"
@@ -265,7 +256,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         self._target_temp = target_temp
         self._unit = unit
         self._support_flags = SUPPORT_FLAGS
-        if away_temp:
+        if away_temp is not None:
             self._support_flags = SUPPORT_FLAGS | ClimateEntityFeature.PRESET_MODE
         self._away_temp = away_temp
         self._is_away = False
@@ -318,6 +309,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         )
 
         self._restore_previous_state(await self.async_get_last_state())
+        self._sync_time_changed_from_state(self.hass.states.get(self.heater_entity_id))
 
         # Set default state to off
         if not self._hvac_mode:
@@ -535,6 +527,14 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set hvac mode."""
+        if hvac_mode != HVACMode.OFF and hvac_mode not in self._hvac_list:
+            _LOGGER.error(
+                "Unsupported hvac mode %s for %s (allowed: %s)",
+                hvac_mode,
+                self.heater_entity_id,
+                self._hvac_list,
+            )
+            return
         if hvac_mode == HVACMode.HEAT:
             self._hvac_mode = HVACMode.HEAT
             await self._async_control_heating(force=True)
@@ -581,7 +581,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
     @property
     def min_temp(self):
         """Return the minimum temperature."""
-        if self._min_temp:
+        if self._min_temp is not None:
             return self._min_temp
 
         # get default temp from super class
@@ -590,7 +590,7 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
     @property
     def max_temp(self):
         """Return the maximum temperature."""
-        if self._max_temp:
+        if self._max_temp is not None:
             return self._max_temp
 
         # Get default temp from super class
@@ -603,15 +603,24 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
             return
 
         self._async_update_temp(new_state)
-        # await self._async_control_heating()
+        await self._async_control_heating(force=False)
         self.async_write_ha_state()
 
     @callback
     def _async_switch_changed(self, event: Event[EventStateChangedData]) -> None:
         """Handle heater switch state changes."""
+        old_state = event.data.get("old_state")
         new_state = event.data["new_state"]
         if new_state is None:
             return
+        if old_state is None:
+            self._sync_time_changed_from_state(new_state)
+            self.async_schedule_update_ha_state()
+            return
+        old_active = self._state_to_active(old_state.state)
+        new_active = self._state_to_active(new_state.state)
+        if old_active != new_active:
+            self._sync_time_changed_from_state(new_state)
         self.async_schedule_update_ha_state()
 
     @callback
@@ -639,23 +648,6 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
             if not self._active or self._hvac_mode == HVACMode.OFF:
                 return
 
-            # if not force and time is None:
-            #    # If the `force` argument is True, we
-            #    # ignore `min_cycle_duration`.
-            #    # If the `time` argument is not none, we were invoked for
-            #    # keep-alive purposes, and `min_cycle_duration` is irrelevant.
-            #    if self.min_cycle_duration:
-            #        if self._is_device_active:
-            #            current_state = STATE_ON
-            #        else:
-            #            current_state = STATE_OFF
-            #        long_enough = condition.state(
-            #            self.hass, self.heater_entity_id, current_state,
-            #            self.min_cycle_duration)
-            #        if not long_enough:
-            #            return
-
-            # self.calc_output()
             await self.calc_output(force=force)
 
     @property
@@ -683,6 +675,27 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         except ValueError:
             return True
 
+    @staticmethod
+    def _state_changed_timestamp(state):
+        """Extract the transition timestamp from a Home Assistant state object."""
+        if state is None:
+            return None
+        last_changed = getattr(state, "last_changed", None)
+        if last_changed is None:
+            return None
+        try:
+            return last_changed.timestamp()
+        except (AttributeError, OSError, OverflowError, TypeError, ValueError):
+            return None
+
+    def _sync_time_changed_from_state(self, state):
+        """Set transition baseline from the latest known entity state."""
+        changed_at = self._state_changed_timestamp(state)
+        if changed_at is None:
+            self.time_changed = time.time()
+            return
+        self.time_changed = changed_at
+
     def _can_toggle(self, force):
         """Return True when min_cycle_duration allows a state transition."""
         if force or self.min_cycle_duration is None:
@@ -698,8 +711,6 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
             min_cycle_seconds - elapsed,
         )
         return False
-
-        # return self.hass.states.is_state(self.heater_entity_id, STATE_ON)
 
     @property
     def supported_features(self):

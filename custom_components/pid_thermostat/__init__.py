@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .climate import CONF_KEEP_ALIVE, CONF_MIN_DUR
+from .const import CONF_KEEP_ALIVE, CONF_MIN_DUR
 
 PLATFORMS = [Platform.CLIMATE]
 

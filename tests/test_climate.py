@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -9,9 +10,10 @@ from custom_components.pid_thermostat import climate
 
 
 class DummyState:
-    def __init__(self, state, attributes=None):
+    def __init__(self, state, attributes=None, last_changed=None):
         self.state = state
         self.attributes = attributes or {}
+        self.last_changed = last_changed
 
 
 class DummyStates:
@@ -21,8 +23,8 @@ class DummyStates:
     def get(self, entity_id):
         return self._states.get(entity_id)
 
-    def set(self, entity_id, state):
-        self._states[entity_id] = DummyState(state)
+    def set(self, entity_id, state, last_changed=None):
+        self._states[entity_id] = DummyState(state, last_changed=last_changed)
 
     def async_set(self, entity_id, state):
         self.set(entity_id, state)
@@ -52,6 +54,8 @@ def build_thermostat(
     *,
     target_temp=21.0,
     ac_mode=False,
+    min_temp=10.0,
+    max_temp=35.0,
     min_cycle_duration=timedelta(seconds=0),
     autotune=climate.DEFAULT_AUTOTUNE,
     pwm=0,
@@ -61,8 +65,8 @@ def build_thermostat(
         "test",
         "switch.heater",
         "sensor.temp",
-        10.0,
-        35.0,
+        min_temp,
+        max_temp,
         target_temp,
         ac_mode,
         min_cycle_duration,
@@ -84,6 +88,7 @@ def build_thermostat(
     thermostat.hass = DummyHass()
     thermostat.hass.states.set(thermostat.heater_entity_id, "off")
     thermostat.async_write_ha_state = Mock()
+    thermostat.async_schedule_update_ha_state = Mock()
     return thermostat
 
 
@@ -158,6 +163,19 @@ def test_is_device_active_handles_switch_off_state():
 
 
 @pytest.mark.asyncio
+async def test_async_set_hvac_mode_rejects_unsupported_mode():
+    thermostat = build_thermostat(ac_mode=False)
+    thermostat._hvac_mode = climate.HVACMode.HEAT
+    thermostat._async_control_heating = AsyncMock()
+
+    await thermostat.async_set_hvac_mode(climate.HVACMode.COOL)
+
+    assert thermostat._hvac_mode == climate.HVACMode.HEAT
+    thermostat._async_control_heating.assert_not_called()
+    thermostat.async_write_ha_state.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_async_set_pid_disables_autotune_rebuilds_controller_and_forces_recalc():
     thermostat = build_thermostat(target_temp=21.0, autotune="ziegler-nichols")
     thermostat._initialize_controller()
@@ -193,6 +211,104 @@ async def test_min_cycle_duration_blocks_and_allows_switching(monkeypatch):
     monkeypatch.setattr(climate.time, "time", lambda: now + 200)
     await thermostat._async_heater_turn_off(force=False)
     assert len(thermostat.hass.services.calls) == 2
+
+
+def test_min_cycle_baseline_uses_state_timestamp(monkeypatch):
+    thermostat = build_thermostat(min_cycle_duration=timedelta(seconds=120))
+    baseline = 1000.0
+    thermostat._sync_time_changed_from_state(
+        DummyState(
+            "off",
+            last_changed=datetime.fromtimestamp(baseline, tz=timezone.utc),
+        )
+    )
+
+    monkeypatch.setattr(climate.time, "time", lambda: baseline + 60)
+    assert thermostat._can_toggle(force=False) is False
+
+    monkeypatch.setattr(climate.time, "time", lambda: baseline + 130)
+    assert thermostat._can_toggle(force=False) is True
+
+
+@pytest.mark.asyncio
+async def test_external_switch_toggle_updates_cycle_baseline(monkeypatch):
+    thermostat = build_thermostat(min_cycle_duration=timedelta(seconds=120))
+    transition_ts = 2000.0
+    old_state = DummyState(
+        "off",
+        last_changed=datetime.fromtimestamp(transition_ts - 5, tz=timezone.utc),
+    )
+    new_state = DummyState(
+        "on",
+        last_changed=datetime.fromtimestamp(transition_ts, tz=timezone.utc),
+    )
+    thermostat.hass.states._states[thermostat.heater_entity_id] = new_state
+    thermostat._async_switch_changed(
+        SimpleNamespace(data={"old_state": old_state, "new_state": new_state})
+    )
+
+    assert thermostat.time_changed == pytest.approx(transition_ts)
+
+    monkeypatch.setattr(climate.time, "time", lambda: transition_ts + 30)
+    await thermostat._async_heater_turn_off(force=False)
+    assert thermostat.hass.services.calls == []
+
+    monkeypatch.setattr(climate.time, "time", lambda: transition_ts + 130)
+    await thermostat._async_heater_turn_off(force=False)
+    assert len(thermostat.hass.services.calls) == 1
+
+
+def test_switch_changed_with_missing_old_state_updates_baseline():
+    thermostat = build_thermostat(min_cycle_duration=timedelta(seconds=120))
+    transition_ts = 2500.0
+    thermostat.time_changed = 0.0
+    new_state = DummyState(
+        "on",
+        last_changed=datetime.fromtimestamp(transition_ts, tz=timezone.utc),
+    )
+    thermostat._async_switch_changed(
+        SimpleNamespace(data={"old_state": None, "new_state": new_state})
+    )
+
+    assert thermostat.time_changed == pytest.approx(transition_ts)
+    thermostat.async_schedule_update_ha_state.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_min_cycle_force_bypasses_for_on_and_off(monkeypatch):
+    thermostat = build_thermostat(min_cycle_duration=timedelta(seconds=120))
+    now = 3000.0
+    thermostat.time_changed = now
+
+    monkeypatch.setattr(climate.time, "time", lambda: now + 10)
+    await thermostat._async_heater_turn_on(force=True)
+    await thermostat._async_heater_turn_off(force=True)
+
+    assert [call[1] for call in thermostat.hass.services.calls] == [
+        SERVICE_TURN_ON,
+        SERVICE_TURN_OFF,
+    ]
+
+
+def test_zero_values_are_not_treated_as_missing():
+    thermostat = build_thermostat(min_temp=0.0, max_temp=0.0, away_temp=0.0)
+
+    assert thermostat.min_temp == pytest.approx(0.0)
+    assert thermostat.max_temp == pytest.approx(0.0)
+    assert thermostat.preset_modes == [climate.PRESET_AWAY, climate.PRESET_HOME]
+
+
+@pytest.mark.asyncio
+async def test_sensor_update_triggers_control_recalculation():
+    thermostat = build_thermostat()
+    thermostat._async_control_heating = AsyncMock()
+    event = SimpleNamespace(data={"new_state": DummyState("22.5")})
+
+    await thermostat._async_sensor_changed(event)
+
+    assert thermostat.current_temperature == pytest.approx(22.5)
+    thermostat._async_control_heating.assert_awaited_once_with(force=False)
+    thermostat.async_write_ha_state.assert_called_once()
 
 
 def test_restore_previous_state_persists_home_and_away_when_away():

@@ -6,8 +6,9 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.const import CONF_NAME
+from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
-from .climate import (
+from .const import (
     AUTOTUNE_RULES,
     CONF_AC_MODE,
     CONF_AUTOTUNE,
@@ -39,9 +40,8 @@ from .climate import (
     DEFAULT_NOISEBAND,
     DEFAULT_PWM,
     DEFAULT_TOLERANCE,
+    DOMAIN,
 )
-
-DOMAIN = "pid_thermostat"
 
 
 class PIDThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -64,8 +64,8 @@ class PIDThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
-                vol.Required(CONF_HEATER): str,
-                vol.Required(CONF_SENSOR): str,
+                vol.Required(CONF_HEATER): EntitySelector(EntitySelectorConfig()),
+                vol.Required(CONF_SENSOR): EntitySelector(EntitySelectorConfig()),
                 vol.Required(
                     CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_SECONDS
                 ): vol.All(vol.Coerce(int), vol.Range(min=1)),

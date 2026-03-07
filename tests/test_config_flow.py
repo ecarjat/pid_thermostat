@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 import custom_components.pid_thermostat as integration
-from custom_components.pid_thermostat import climate
+from custom_components.pid_thermostat import climate, const
 
 pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
 
@@ -43,6 +43,49 @@ async def test_user_config_flow_creates_entry(hass):
     entry = result["result"]
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+@pytest.mark.asyncio
+async def test_user_config_flow_rejects_missing_required_entity_fields(hass):
+    """Config flow should reject submissions missing required selector fields."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": "user"},
+    )
+    assert result["type"] == FlowResultType.FORM
+
+    with pytest.raises(InvalidData):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                climate.CONF_NAME: "Office",
+                const.CONF_SENSOR: "sensor.office_temp",
+                const.CONF_KEEP_ALIVE: 45,
+                const.CONF_AUTOTUNE: const.DEFAULT_AUTOTUNE,
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_user_config_flow_rejects_invalid_entity_selector_values(hass):
+    """Config flow should reject invalid entity selector values."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": "user"},
+    )
+    assert result["type"] == FlowResultType.FORM
+
+    with pytest.raises(InvalidData):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                climate.CONF_NAME: "Office",
+                const.CONF_HEATER: 123,
+                const.CONF_SENSOR: "sensor.office_temp",
+                const.CONF_KEEP_ALIVE: 45,
+                const.CONF_AUTOTUNE: const.DEFAULT_AUTOTUNE,
+            },
+        )
 
 
 @pytest.mark.asyncio
