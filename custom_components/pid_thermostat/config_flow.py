@@ -6,7 +6,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.const import CONF_NAME
-from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
 from .const import (
     AUTOTUNE_RULES,
@@ -43,6 +42,19 @@ from .const import (
     DOMAIN,
 )
 
+try:
+    from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
+except ImportError:  # pragma: no cover - compatibility fallback for older HA
+    EntitySelector = None
+    EntitySelectorConfig = None
+
+
+def _entity_field():
+    """Return entity selector when available, fallback to string."""
+    if EntitySelector is None or EntitySelectorConfig is None:
+        return str
+    return EntitySelector(EntitySelectorConfig())
+
 
 class PIDThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for pid_thermostat."""
@@ -64,8 +76,8 @@ class PIDThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
-                vol.Required(CONF_HEATER): EntitySelector(EntitySelectorConfig()),
-                vol.Required(CONF_SENSOR): EntitySelector(EntitySelectorConfig()),
+                vol.Required(CONF_HEATER): _entity_field(),
+                vol.Required(CONF_SENSOR): _entity_field(),
                 vol.Required(
                     CONF_KEEP_ALIVE, default=DEFAULT_KEEP_ALIVE_SECONDS
                 ): vol.All(vol.Coerce(int), vol.Range(min=1)),
