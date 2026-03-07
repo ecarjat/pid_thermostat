@@ -147,7 +147,10 @@ async def async_setup_entry(
     hass, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up pid_thermostat from a config entry."""
-    async_add_entities([_build_thermostat(hass, entry.data)])
+    unique_id = entry.unique_id
+    if unique_id is None:
+        unique_id = f"{entry.data.get(CONF_HEATER)}::{entry.data.get(CONF_SENSOR)}"
+    async_add_entities([_build_thermostat(hass, entry.data, unique_id=unique_id)])
 
 
 def _as_timedelta(value, default_seconds=None):
@@ -161,7 +164,7 @@ def _as_timedelta(value, default_seconds=None):
     return timedelta(seconds=float(value))
 
 
-def _build_thermostat(hass, config):
+def _build_thermostat(hass, config, unique_id=None):
     """Build a SmartThermostat from YAML or config entry data."""
     name = config.get(CONF_NAME)
     heater_entity_id = config.get(CONF_HEATER)
@@ -188,6 +191,8 @@ def _build_thermostat(hass, config):
     pwm = config.get(CONF_PWM, DEFAULT_PWM)
     autotune = config.get(CONF_AUTOTUNE, DEFAULT_AUTOTUNE)
     noiseband = config.get(CONF_NOISEBAND, DEFAULT_NOISEBAND)
+    if unique_id is None:
+        unique_id = f"{heater_entity_id}::{sensor_entity_id}"
 
     return SmartThermostat(
         name,
@@ -212,6 +217,7 @@ def _build_thermostat(hass, config):
         pwm,
         autotune,
         noiseband,
+        unique_id,
     )
 
 
@@ -242,9 +248,11 @@ class SmartThermostat(ClimateEntity, RestoreEntity):
         pwm,
         autotune,
         noiseband,
+        unique_id,
     ):
         """Initialize the thermostat."""
         self._name = name
+        self._attr_unique_id = unique_id
         self.heater_entity_id = heater_entity_id
         self.sensor_entity_id = sensor_entity_id
         self.ac_mode = ac_mode

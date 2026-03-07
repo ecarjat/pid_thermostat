@@ -88,6 +88,7 @@ def build_thermostat(
         pwm,
         autotune,
         0.5,
+        "test-uid",
     )
     thermostat.hass = DummyHass()
     thermostat.hass.states.set(thermostat.heater_entity_id, "off")
@@ -116,6 +117,46 @@ async def test_async_setup_platform_imports_yaml_to_config_entry():
     assert kwargs["data"][climate.CONF_HEATER] == "switch.heater"
     assert "platform" not in kwargs["data"]
     assert added == []
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_uses_config_entry_unique_id():
+    hass = DummyHass()
+    added = []
+    entry = SimpleNamespace(
+        unique_id="imported-uid",
+        data={
+            climate.CONF_NAME: "Office",
+            climate.CONF_HEATER: "switch.heater",
+            climate.CONF_SENSOR: "sensor.temp",
+            climate.CONF_KEEP_ALIVE: 45,
+        },
+    )
+
+    await climate.async_setup_entry(hass, entry, lambda entities: added.extend(entities))
+
+    assert len(added) == 1
+    assert added[0].unique_id == "imported-uid"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_derives_unique_id_when_missing():
+    hass = DummyHass()
+    added = []
+    entry = SimpleNamespace(
+        unique_id=None,
+        data={
+            climate.CONF_NAME: "Office",
+            climate.CONF_HEATER: "switch.heater",
+            climate.CONF_SENSOR: "sensor.temp",
+            climate.CONF_KEEP_ALIVE: 45,
+        },
+    )
+
+    await climate.async_setup_entry(hass, entry, lambda entities: added.extend(entities))
+
+    assert len(added) == 1
+    assert added[0].unique_id == "switch.heater::sensor.temp"
 
 
 def test_schema_rejects_invalid_autotune_value():
