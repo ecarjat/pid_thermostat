@@ -150,7 +150,9 @@ async def async_setup_entry(
     unique_id = entry.unique_id
     if unique_id is None:
         unique_id = f"{entry.data.get(CONF_HEATER)}::{entry.data.get(CONF_SENSOR)}"
-    async_add_entities([_build_thermostat(hass, entry.data, unique_id=unique_id)])
+    config = dict(entry.data)
+    config.update(getattr(entry, "options", {}) or {})
+    async_add_entities([_build_thermostat(hass, config, unique_id=unique_id)])
 
 
 def _as_timedelta(value, default_seconds=None):

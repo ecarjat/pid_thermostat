@@ -132,3 +132,38 @@ async def test_import_flow_creates_entry_and_normalizes_time_values(hass):
     assert result["data"][climate.CONF_KEEP_ALIVE] == 45
     assert result["data"][climate.CONF_MIN_DUR] == 120
     assert result["data"][climate.CONF_NAME] == climate.DEFAULT_NAME
+
+
+@pytest.mark.asyncio
+async def test_options_flow_updates_runtime_parameters(hass):
+    """Options flow should allow editing thermostat tuning parameters."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Office",
+        data={
+            climate.CONF_NAME: "Office",
+            climate.CONF_HEATER: "switch.heater_office",
+            climate.CONF_SENSOR: "sensor.office_temp",
+            climate.CONF_KEEP_ALIVE: 45,
+            climate.CONF_KP: 1.0,
+            climate.CONF_AUTOTUNE: climate.DEFAULT_AUTOTUNE,
+        },
+        unique_id="switch.heater_office::sensor.office_temp",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            climate.CONF_NAME: "Office Tuned",
+            climate.CONF_KEEP_ALIVE: 90,
+            climate.CONF_KP: 6.0,
+            climate.CONF_AUTOTUNE: climate.DEFAULT_AUTOTUNE,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][climate.CONF_KEEP_ALIVE] == 90
+    assert result["data"][climate.CONF_KP] == 6.0

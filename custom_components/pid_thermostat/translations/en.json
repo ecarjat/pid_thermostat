@@ -30,5 +30,34 @@
         }
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit PID Thermostat",
+        "description": "Update thermostat tuning and behavior parameters.",
+        "data": {
+          "name": "Name",
+          "keep_alive": "Control interval (seconds)",
+          "ac_mode": "Cooling mode",
+          "min_cycle_duration": "Minimum cycle duration (seconds)",
+          "min_temp": "Minimum temperature",
+          "max_temp": "Maximum temperature",
+          "target_temp": "Target temperature",
+          "cold_tolerance": "Cold tolerance",
+          "hot_tolerance": "Hot tolerance",
+          "initial_hvac_mode": "Initial HVAC mode",
+          "away_temp": "Away temperature",
+          "precision": "Precision",
+          "difference": "Output difference",
+          "kp": "PID Kp",
+          "ki": "PID Ki",
+          "kd": "PID Kd",
+          "pwm": "PWM period (seconds)",
+          "autotune": "Autotune mode",
+          "noiseband": "Autotune noise band"
+        }
+      }
+    }
   }
 }

@@ -159,6 +159,33 @@ async def test_async_setup_entry_derives_unique_id_when_missing():
     assert added[0].unique_id == "switch.heater::sensor.temp"
 
 
+@pytest.mark.asyncio
+async def test_async_setup_entry_applies_options_overrides():
+    hass = DummyHass()
+    added = []
+    entry = SimpleNamespace(
+        unique_id="imported-uid",
+        data={
+            climate.CONF_NAME: "Office",
+            climate.CONF_HEATER: "switch.heater",
+            climate.CONF_SENSOR: "sensor.temp",
+            climate.CONF_KEEP_ALIVE: 45,
+            climate.CONF_KP: 1.0,
+        },
+        options={
+            climate.CONF_KEEP_ALIVE: 90,
+            climate.CONF_KP: 6.0,
+        },
+    )
+
+    await climate.async_setup_entry(hass, entry, lambda entities: added.extend(entities))
+
+    assert len(added) == 1
+    thermostat = added[0]
+    assert thermostat._keep_alive.total_seconds() == pytest.approx(90)
+    assert thermostat.kp == pytest.approx(6.0)
+
+
 def test_schema_rejects_invalid_autotune_value():
     config = {
         climate.CONF_HEATER: "switch.heater",
